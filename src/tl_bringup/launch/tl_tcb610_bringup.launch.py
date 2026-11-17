@@ -7,6 +7,7 @@ from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 
+# NOTE
 def generate_launch_description():
 
     arm_type = "tcb610"
@@ -14,7 +15,11 @@ def generate_launch_description():
 
     tl_driver = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(get_package_share_directory("tl_driver"), "launch", "tl_driver.launch.py")
+            os.path.join(
+                get_package_share_directory("tl_driver"),
+                "launch",
+                "tl_driver.launch.py",
+            )
         ),
         launch_arguments={
             "arm_type": arm_type,
@@ -24,7 +29,9 @@ def generate_launch_description():
     tl_description = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(
-                get_package_share_directory("tl_description"), "launch", "tl_description.launch.py"
+                get_package_share_directory("tl_description"),
+                "launch",
+                "tl_description.launch.py",
             )
         ),
         launch_arguments={"arm_type": arm_type, "use_sim": use_sim}.items(),

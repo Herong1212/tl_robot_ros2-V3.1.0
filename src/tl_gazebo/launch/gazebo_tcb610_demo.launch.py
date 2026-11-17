@@ -27,7 +27,9 @@ def generate_launch_description():
 
     if os.path.lexists(gazebo_tl_description_meshes):
         if os.path.islink(gazebo_tl_description_meshes):
-            if os.path.realpath(gazebo_tl_description_meshes) != os.path.realpath(real_meshes_dir):
+            if os.path.realpath(gazebo_tl_description_meshes) != os.path.realpath(
+                real_meshes_dir
+            ):
                 os.unlink(gazebo_tl_description_meshes)
         else:
             raise RuntimeError(
@@ -104,7 +106,9 @@ def generate_launch_description():
     # ------------------------------------------------------------
 
     pkg_share = FindPackageShare(package=package_name).find(package_name)
-    urdf_model_path = os.path.join(pkg_share, "config/gazebo_tcb610_description.urdf.xacro")
+    urdf_model_path = os.path.join(
+        pkg_share, "config/gazebo_tcb610_description.urdf.xacro"
+    )
 
     # 直接加载 Gazebo 自带 empty.world
     gazebo_default_world = "/usr/share/gazebo-11/worlds/empty.world"
@@ -167,7 +171,14 @@ def generate_launch_description():
     )
 
     load_joint_trajectory_controller = ExecuteProcess(
-        cmd=["ros2", "control", "load_controller", "--set-state", "active", "tcb_group_controller"],
+        cmd=[
+            "ros2",
+            "control",
+            "load_controller",
+            "--set-state",
+            "active",
+            "tcb_group_controller",
+        ],
         output="screen",
     )
 
