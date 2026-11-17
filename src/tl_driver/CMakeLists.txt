@@ -1,0 +1,153 @@
+cmake_minimum_required(VERSION 3.16)
+project(tl_driver)
+
+if(NOT CMAKE_CXX_STANDARD)
+  set(CMAKE_CXX_STANDARD 17)
+endif()
+
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  add_compile_options(-Wall -Wextra -Wpedantic -std=c++17)
+endif()
+
+# 版本号单一来源：package.xml 的 <version>，生成编译期宏 TL_DRIVER_VERSION
+# 模板随源码放在 src/ 下；生成物落在构建目录的 include/tl_driver/（标准生成头暂存位置）
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/package.xml" TL_PACKAGE_XML)
+string(REGEX MATCH "<version>([^<]+)</version>" TL_PACKAGE_VERSION_MATCH "${TL_PACKAGE_XML}")
+if(NOT TL_PACKAGE_VERSION_MATCH)
+  message(FATAL_ERROR "tl_driver: failed to parse <version> from package.xml")
+endif()
+set(TL_DRIVER_VERSION "${CMAKE_MATCH_1}")
+configure_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/version.hpp.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/include/tl_driver/version.hpp"
+  @ONLY
+)
+message(STATUS "tl_driver: version ${TL_DRIVER_VERSION}")
+
+find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(rclcpp_action REQUIRED)
+find_package(rcl_interfaces REQUIRED)
+find_package(std_srvs REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(Python3 REQUIRED COMPONENTS Development)
+find_package(tl_ros2_interface REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(nlohmann_json REQUIRED)
+
+# 根据目标架构选择对应的动态库目录
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
+  set(TL_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/lib/arm")
+  set(TL_ARCH "aarch64")
+  message(STATUS "tl_driver: detected ARM64 architecture, using lib/arm/")
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|amd64|i686|i386")
+  set(TL_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/lib/x86")
+  set(TL_ARCH "x86_64")
+  message(STATUS "tl_driver: detected x86_64 architecture, using lib/x86/")
+else()
+  message(FATAL_ERROR "tl_driver: unsupported architecture '${CMAKE_SYSTEM_PROCESSOR}', expected x86_64 or aarch64")
+endif()
+
+# 导入已有动态库（仅 libtl_host.so 被 C++ 链接）
+add_library(tl_host_lib SHARED IMPORTED)
+set_target_properties(tl_host_lib PROPERTIES
+  IMPORTED_LOCATION "${TL_LIB_DIR}/libtl_host.so"
+)
+
+add_executable(tl_driver
+  src/tl_driver_main.cpp
+  src/arm_client.cpp
+  src/arm_session.cpp
+  src/convert/msg_convert.cpp
+  src/convert/state_frame.cpp
+  src/node/actions_motion.cpp
+  src/node/driver_node.cpp
+  src/node/publishers.cpp
+  src/node/services_config.cpp
+  src/node/services_io.cpp
+  src/node/services_motion.cpp
+  src/node/services_session.cpp
+  src/node/services_state.cpp
+  src/node/services_transform.cpp
+  src/node/topics.cpp
+)
+
+target_include_directories(tl_driver PRIVATE
+  "${CMAKE_CURRENT_BINARY_DIR}/include"
+  "${CMAKE_CURRENT_SOURCE_DIR}/lib/include"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src"
+)
+
+ament_target_dependencies(tl_driver
+  rclcpp
+  rclcpp_action
+  rcl_interfaces
+  std_srvs
+  sensor_msgs
+  tl_ros2_interface
+  std_msgs
+)
+
+target_link_libraries(tl_driver
+  tl_host_lib
+  nlohmann_json::nlohmann_json
+  Python3::Python
+  pthread
+  dl
+  rt
+)
+
+set_target_properties(tl_driver PROPERTIES
+  BUILD_RPATH "${TL_LIB_DIR}"
+  INSTALL_RPATH "$ORIGIN"
+)
+
+install(TARGETS tl_driver
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+# 安装 TL 动态库（新库为单一 libtl_host.so，不再需要 Python 接口 tl_interface.py）
+install(FILES
+  "${TL_LIB_DIR}/libtl_host.so"
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+# 纯逻辑层单元测试（不依赖机械臂与 SDK 动态库）
+if(BUILD_TESTING)
+  find_package(ament_cmake_gtest REQUIRED)
+
+  ament_add_gtest(test_units test/test_units.cpp)
+  target_include_directories(test_units PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+
+  ament_add_gtest(test_msg_convert test/test_msg_convert.cpp src/convert/msg_convert.cpp)
+  target_include_directories(test_msg_convert PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/lib/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+  )
+  ament_target_dependencies(test_msg_convert tl_ros2_interface)
+
+  ament_add_gtest(test_state_frame test/test_state_frame.cpp src/convert/state_frame.cpp)
+  target_include_directories(test_state_frame PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  target_link_libraries(test_state_frame nlohmann_json::nlohmann_json)
+endif()
+
+# 创建 libnrc_host.so 符号链接，兼容旧版 SONAME 引用
+install(CODE "
+  execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink
+    libtl_host.so
+    \"\${CMAKE_INSTALL_PREFIX}/lib/${PROJECT_NAME}/libnrc_host.so\"
+  )
+")
+
+# ARM64 额外的依赖库：新 libtl_host.so 已自包含，无需 libmath/libmodbus/libservoJ_wrapper
+# 若 SDK 后续提供额外依赖库，可在 arm/ 下放置后在此追加安装
+
+install(DIRECTORY config
+  DESTINATION share/${PROJECT_NAME}
+)
+
+install(DIRECTORY launch
+  DESTINATION share/${PROJECT_NAME}
+)
+
+ament_package()
