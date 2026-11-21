@@ -1,27 +1,33 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>tl_teleop</name>
-  <version>3.1.0</version>
-  <description>天链机械臂 VR 遥操作功能包（PXREA Robot SDK）</description>
-  <maintainer email="tlibot@tlibot.com">天链机器人</maintainer>
-  <license>Apache-2.0</license>
+    <name>tl_teleop</name>
+    <version>3.1.0</version>
+    <description>天链机械臂 VR 遥操作功能包（PXREA Robot SDK）</description>
+    <maintainer email="tlibot@tlibot.com">天链机器人</maintainer>
+    <license>Apache-2.0</license>
 
-  <buildtool_depend>ament_cmake</buildtool_depend>
+    <buildtool_depend>ament_cmake</buildtool_depend>
+    <buildtool_depend>ament_cmake_python</buildtool_depend>
 
-  <depend>rclcpp</depend>
-  <depend>tl_ros2_interface</depend>
-  <depend>nlohmann_json</depend>
-  <depend>sensor_msgs</depend>
-  <depend>std_msgs</depend>
-  <depend>std_srvs</depend>
+    <depend>rclcpp</depend>
+    <depend>tl_ros2_interface</depend>
+    <depend>nlohmann_json</depend>
+    <depend>sensor_msgs</depend>
+    <depend>ruckig</depend>
+    <depend>std_msgs</depend>
+    <depend>std_srvs</depend>
 
-  <exec_depend>tl_driver</exec_depend>
+    <exec_depend>tl_driver</exec_depend>
+    <exec_depend>rclpy</exec_depend>
+    <exec_depend>python3-serial</exec_depend>
 
-  <test_depend>ament_lint_auto</test_depend>
-  <test_depend>ament_lint_common</test_depend>
+    <test_depend>ament_cmake_gtest</test_depend>
+    <test_depend>ament_cmake_pytest</test_depend>
+    <test_depend>ament_lint_auto</test_depend>
+    <test_depend>ament_lint_common</test_depend>
 
-  <export>
-    <build_type>ament_cmake</build_type>
-  </export>
+    <export>
+        <build_type>ament_cmake</build_type>
+    </export>
 </package>

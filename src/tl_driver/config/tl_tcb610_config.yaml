@@ -1,8 +1,11 @@
-tl_driver:   
-  ros__parameters:  
-    #robot param  
-    arm_ip: "192.168.1.13"          # 设置TCP连接时的IP  
-    arm_port: "6001"                # 设置TCP连接时的端口  
-    arm_port_aux: "7000"
-    arm_type: "TCB610"
-    arm_joints: ["joint1", "joint2", "joint3", "joint4", "joint5", "joint6"] # 关节名称
+tl_driver:
+    ros__parameters:
+        #robot param
+        arm_ip: "192.168.1.13" # 设置TCP连接时的IP
+        arm_port: "6001" # ps 设置TCP连接时的端口，主连接，用于控制、查询和错误反馈
+        arm_port_aux: "7000" # ps 辅助连接，用于状态流，也供 ServoJ 等接口使用
+        arm_type: "TCB610"
+        arm_joints: ["joint1", "joint2", "joint3", "joint4", "joint5", "joint6"] # 关节名称
+        # 温度/电压慢查询与逆解共用连接；TCB610 遥操默认关闭，单独启动驱动也生效。
+        joint_monitor_rate: 0.0
+        feedback_rate: 100.0

@@ -11,12 +11,14 @@ endif()
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
+find_package(ament_cmake_python REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(tl_ros2_interface REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(ruckig REQUIRED)
 
 # 根据目标架构选择 PXREA SDK 库目录
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
@@ -55,6 +57,7 @@ ament_target_dependencies(tl_teleop
 
 target_link_libraries(tl_teleop
   pxrea_sdk
+  ruckig::ruckig
   pthread
   dl
 )
@@ -66,6 +69,13 @@ set_target_properties(tl_teleop PROPERTIES
 
 install(TARGETS tl_teleop
   DESTINATION lib/${PROJECT_NAME}
+)
+
+ament_python_install_package(tl_teleop_gripper)
+install(PROGRAMS scripts/tl_gripper DESTINATION lib/${PROJECT_NAME})
+install(DIRECTORY tl_teleop_gripper/vendor/
+  DESTINATION share/${PROJECT_NAME}/vendor/lebai_claw_sdk
+  FILES_MATCHING PATTERN "*.md"
 )
 
 # 安装 PXREA Robot SDK 动态库
@@ -83,6 +93,30 @@ install(DIRECTORY launch
 )
 
 if(BUILD_TESTING)
+  find_package(ament_cmake_gtest REQUIRED)
+  find_package(ament_cmake_pytest REQUIRED)
+  ament_add_pytest_test(test_gripper_core test/test_gripper_core.py
+    APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}
+    TIMEOUT 60
+  )
+  ament_add_gtest(test_joint_trajectory test/test_joint_trajectory.cpp)
+  target_include_directories(test_joint_trajectory PRIVATE include)
+  target_link_libraries(test_joint_trajectory ruckig::ruckig)
+  ament_add_gtest(test_gripper_control test/test_gripper_control.cpp)
+  target_include_directories(test_gripper_control PRIVATE include)
+  target_link_libraries(test_gripper_control nlohmann_json::nlohmann_json)
+  ament_add_gtest(test_single_instance test/test_single_instance.cpp TIMEOUT 10)
+  target_include_directories(test_single_instance PRIVATE include)
+  ament_add_gtest(test_startup_wait test/test_startup_wait.cpp)
+  target_include_directories(test_startup_wait PRIVATE include)
+  ament_add_pytest_test(test_teleop_startup test/test_teleop_startup.py
+    ENV TL_TELEOP_TEST_EXECUTABLE=$<TARGET_FILE:tl_teleop>
+    TIMEOUT 30
+  )
+  ament_add_pytest_test(test_gripper_ros test/test_gripper_ros.py
+    APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}
+    TIMEOUT 60
+  )
   find_package(ament_lint_auto REQUIRED)
   # the following line skips the linter which checks for copyrights
   # comment the line when a copyright and license is added to all source files

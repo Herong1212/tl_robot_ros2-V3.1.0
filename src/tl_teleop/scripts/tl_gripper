@@ -1,0 +1,110 @@
+#!/usr/bin/python3
+"""ROS transport for the independent USB/RS485 Lebai gripper worker."""
+
+import json
+import math
+
+import rclpy
+from rclpy.duration import Duration
+from rclpy.executors import ExternalShutdownException
+from rclpy.node import Node
+from rclpy.qos import QoSProfile
+from sensor_msgs.msg import Joy
+from std_msgs.msg import Bool, String
+
+from tl_teleop_gripper.controller import GripperController
+
+
+class GripperNode(Node):
+    def __init__(self):
+        super().__init__('tl_gripper_node')
+        defaults = {
+            'port': '/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0',
+            'baudrate': 115200,
+            'slave_id': 1,
+            'serial_timeout': 0.5,
+            'force': 10,
+            'speed': 20,
+            'input_timeout': 0.2,
+            'trigger_threshold': 0.5,
+        }
+        for name, default in defaults.items():
+            self.declare_parameter(name, default)
+        values = {name: self.get_parameter(name).value for name in defaults}
+        self.input_timeout = values['input_timeout']
+        self.controller = GripperController(
+            port=values['port'], slave_id=values['slave_id'],
+            baudrate=values['baudrate'], timeout=values['serial_timeout'],
+            force=values['force'], speed=values['speed'],
+            input_timeout=self.input_timeout, threshold=values['trigger_threshold'])
+        input_qos = QoSProfile(depth=1, lifespan=Duration(seconds=self.input_timeout))
+        self.input_sub = self.create_subscription(
+            Joy, '/tl_teleop/gripper_input', self.on_input, input_qos)
+        ready_qos = QoSProfile(depth=1, lifespan=Duration(seconds=1.0))
+        self.ready_pub = self.create_publisher(Bool, '/tl_teleop/gripper_ready', ready_qos)
+        self.state_pub = self.create_publisher(String, '/tl_teleop/gripper_state', 1)
+        self.last_error = None
+        self.last_ready = False
+        self.last_command_count = 0
+        self.timer = self.create_timer(0.1, self.publish_state)
+        self.get_logger().info(
+            f"Connecting Lebai gripper at {values['port']} "
+            f"({values['baudrate']} baud, slave {values['slave_id']}); "
+            'startup only reads status, motion requires Grip + Trigger')
+        self.controller.start()
+
+    def on_input(self, message):
+        stamp = message.header.stamp.sec + message.header.stamp.nanosec * 1e-9
+        age = self.get_clock().now().nanoseconds * 1e-9 - stamp
+        valid = (len(message.axes) == 1 and len(message.buttons) == 1
+                 and message.buttons[0] in (0, 1)
+                 and math.isfinite(age) and 0 <= age < self.input_timeout)
+        if not valid:
+            self.controller.update_input(float('nan'), False)
+            return
+        self.controller.update_input(
+            float(message.axes[0]), bool(message.buttons[0]), age_s=age)
+
+    def publish_state(self):
+        state = self.controller.snapshot()
+        self.ready_pub.publish(Bool(data=state['ready']))
+        if state['state_age_s'] is not None and not math.isfinite(state['state_age_s']):
+            state['state_age_s'] = None
+        self.state_pub.publish(String(data=json.dumps(state, allow_nan=False)))
+        if state['error'] and state['error'] != self.last_error:
+            self.get_logger().error(f"Gripper fault (restart required): {state['error']}")
+        if state['ready'] and not self.last_ready:
+            self.get_logger().info('Gripper ready: calibrated status received')
+        if state['commands_sent'] != self.last_command_count:
+            self.get_logger().info(
+                f"Gripper target: {state['last_command']}% opening "
+                f"(commands sent: {state['commands_sent']})")
+        self.last_error = state['error']
+        self.last_ready = state['ready']
+        self.last_command_count = state['commands_sent']
+
+    def close(self):
+        self.controller.update_input(float('nan'), False)
+        self.controller.close()
+        if rclpy.ok():
+            self.ready_pub.publish(Bool(data=False))
+
+
+def main():
+    rclpy.init()
+    node = None
+    try:
+        node = GripperNode()
+        rclpy.spin(node)
+    except (KeyboardInterrupt, ExternalShutdownException):
+        pass
+    finally:
+        if node is not None:
+            node.close()
+            node.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()

@@ -1,0 +1,12 @@
+tl_gripper_node:
+  ros__parameters:
+    # 独立 USB/RS485 乐白夹爪，沿用 vr_tcb610 已验证的连接参数。
+    port: /dev/serial/by-id/usb-1a86_USB_Serial-if00-port0
+    baudrate: 115200
+    slave_id: 1
+    serial_timeout: 0.5
+    # SDK 的 0–100 档位；沿用旧项目力度 10、速度 20。
+    force: 10
+    speed: 20
+    input_timeout: 0.2
+    trigger_threshold: 0.5

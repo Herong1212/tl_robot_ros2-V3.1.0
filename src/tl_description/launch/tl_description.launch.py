@@ -74,7 +74,8 @@ def launch_setup(context, *args, **kwargs):
 
     if arm_type not in configs:
         raise RuntimeError(
-            f"Unsupported arm_type: {arm_type}. " f"Supported arm_type: {list(configs.keys())}"
+            f"Unsupported arm_type: {arm_type}. "
+            f"Supported arm_type: {list(configs.keys())}"
         )
 
     urdf_file = configs[arm_type]["urdf"]
@@ -91,6 +92,7 @@ def launch_setup(context, *args, **kwargs):
 
     nodes = []
 
+    # * 启动 node1
     nodes.append(
         Node(
             package="robot_state_publisher",
@@ -101,6 +103,7 @@ def launch_setup(context, *args, **kwargs):
         )
     )
 
+    # * 启动 node2（可选，只有 use_sim=true 时才启动 node2）
     nodes.append(
         Node(
             package="joint_state_publisher_gui",
@@ -111,6 +114,7 @@ def launch_setup(context, *args, **kwargs):
         )
     )
 
+    # * 启动 node3
     nodes.append(
         Node(
             package="rviz2",
@@ -147,6 +151,7 @@ def generate_launch_description():
         ],
     )
 
+    # ! 驱动真机时要设置 use_sim=false，具体作用是关闭这里的 joint_state_publisher_gui 节点，让关节状态由真机驱动提供
     declare_use_sim = DeclareLaunchArgument(
         "use_sim",
         default_value="false",
